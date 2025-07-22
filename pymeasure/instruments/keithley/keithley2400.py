@@ -704,7 +704,142 @@ class Keithley2400(KeithleyBuffer, SCPIMixin, Instrument):
     def status(self):
         return self.ask("status:queue?;")
 
+    def sweep(
+        self,
+        source,
+        start,
+        stop,
+        step,
+        compliance=None,
+        delay="auto",
+        source_range="auto",
+        backward=False,
+    ):
+        """Run an inbuilt current or voltage sweep, as detailed in Section 10-19,
+        remote sweep operation, of the Keithley2400 manual."""
+        # TODO: Complete docstring
+
+        if source not in ["current", "voltage"]:
+            raise ValueError("Invalid value given for source, must be 'current' or 'voltage'.")
+        current_source = True if source == "current" else False
+
+        # Store the current setup in the answer to life, the universe, and everything
+        self.write(":SOUR:MEM:SAVE 42")
+        self.reset()
+
+        # Turn off concurrent functions.
+        self.write(":SENS:FUNC:CONC OFF")
+
+        if current_source:
+            # Configure to source current and measure voltage
+            apply_current_kwargs = {}
+            if compliance:
+                apply_current_kwargs["compliance_voltage"] = compliance
+            if isinstance(source_range, (int, float)):
+                apply_current_kwargs["current_range"] = source_range
+            self.apply_current(**apply_current_kwargs)
+            self.source_current = start
+            self.measure_voltage()
+
+            # Configure the current sweep
+            self.write(":SOUR:CURR:STAR %g" % start)
+            self.write(":SOUR:CURR:STOP %g" % stop)
+            self.write(":SOUR:CURR:STEP %g" % step)
+            self.write(":SOUR:CURR:MODE SWE")
+        else:
+            # Configure to source voltage and measure current
+            apply_voltage_kwargs = {}
+            if compliance:
+                apply_voltage_kwargs["compliance_current"] = compliance
+            if isinstance(source_range, (int, float)):
+                apply_voltage_kwargs["voltage_range"] = source_range
+            self.apply_voltage(**apply_voltage_kwargs)
+            self.source_voltage = start
+            self.measure_current()
+
+            # Configure the voltage sweep
+            self.write(":SOUR:VOLT:STAR %g" % start)
+            self.write(":SOUR:VOLT:STOP %g" % stop)
+            self.write(":SOUR:VOLT:STEP %g" % step)
+            self.write(":SOUR:VOLT:MODE SWE")
+
+        # Select source ranging
+        if isinstance(source_range, (int, float)):
+            self.write(":SOUR:SWE:RANG FIX")
+        elif source_range == "auto":
+            self.write(":SOUR:SWE:RANG AUTO")
+        elif source_range == "best":
+            self.write(":SOUR:SWE:RANG BEST")
+        else:
+            raise ValueError(
+                "Invalid value given for `source_range`, must be an int, float, 'auto', or 'best'."
+            )
+
+        # Select linear staircase sweep
+        self.write(":SOUR:SWE:SPAC LIN")
+
+        # Set trigger count equal to number of points in sweep
+        num = self.values("SOUR:SWE:POIN?", cast=int)
+        self.write(":TRIG:COUN %d" % num)
+
+        if backward:
+            self.write(":SOUR:SWE:DIRE DOW")
+        else:
+            self.write(":SOUR:SWE:DIRE UP")
+
+        # Configure the source delay
+        if delay == "auto":
+            self.source_delay_auto = True
+        else:
+            self.source_delay_auto = False
+            self.source_delay = delay
+
+        prev_timeout = self.adapter.connection.timeout
+        self.adapter.connection.timeout = 100 * num
+
+        # Check for errors in sweep setup
+        self.check_errors()
+
+        # ====== RUN THE SWEEP ======
+        self.source_enabled = True
+        data = self.values(":READ?")
+        self.source_enabled = False
+        # ===========================
+
+        # Check for errors in sweep execution
+        self.check_errors()
+
+        # Recall the previous setup from the answer to life, the universe, and everything
+        self.write(":SOUR:MEM:REC 42")
+        self.adapter.connection.timeout = prev_timeout
+
+        return dict(
+            voltage=data[0::5],
+            current=data[1::5],
+            resistance=data[2::5],
+        )
+
+    def sweep_current(self, start, stop, step, **kwargs):
+        return self.sweep(
+            source="current",
+            start=start,
+            stop=stop,
+            step=step,
+            **kwargs,
+        )
+
+    def sweep_voltage(self, start, stop, step, **kwargs):
+        return self.sweep(
+            source="voltage",
+            start=start,
+            stop=stop,
+            step=step,
+            **kwargs,
+        )
+
     def RvsI(self, startI, stopI, stepI, compliance, delay=10.0e-3, backward=False):
+        warn("Deprecated to use `RvsI`, use `sweep_current` instead.", FutureWarning)
+
         num = int(float(stopI - startI) / float(stepI)) + 1
         currRange = 1.2 * max(abs(stopI), abs(startI))
         # self.write(":SOUR:CURR 0.0")

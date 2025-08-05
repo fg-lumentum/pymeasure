@@ -25,7 +25,7 @@
 import logging
 
 from pymeasure.instruments import Instrument, SCPIMixin
-from pymeasure.instruments.validators import truncated_range
+from pymeasure.instruments.validators import strict_range
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -64,7 +64,7 @@ class ThorlabsPM100USB(SCPIMixin, Instrument):
             if not hasattr(self, "_wavelength_max"):
                 self._wavelength_max = self.wavelength_max
 
-            value = truncated_range(
+            value = strict_range(
                 value, [self._wavelength_min, self._wavelength_max]
             )
             self.write(f"SENSE:CORR:WAV {value}")

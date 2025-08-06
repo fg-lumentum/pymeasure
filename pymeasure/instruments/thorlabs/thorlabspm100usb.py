@@ -25,71 +25,25 @@
 import logging
 
 from pymeasure.instruments import Instrument, SCPIMixin
-from pymeasure.instruments.validators import strict_range
+from pymeasure.instruments.validators import strict_range, strict_discrete_set
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
+DISABLE_FOR_POWER_SENSOR = ["energy", "energy_range"]
+DISABLE_FOR_ENERGY_SENSOR = ["power", "power_range", "power_auto_range"]
+
+
 class ThorlabsPM100USB(SCPIMixin, Instrument):
     """Represents Thorlabs PM100USB powermeter."""
 
+    # === INTERNAL METHODS ===
+
     def __init__(self, adapter, name="ThorlabsPM100USB powermeter", **kwargs):
-        super().__init__(
-            adapter, name, **kwargs
-        )
+        super().__init__(adapter, name, **kwargs)
         self._set_flags()
-
-    wavelength_min = Instrument.measurement(
-        "SENS:CORR:WAV? MIN", "Measure minimum wavelength, in nm"
-    )
-
-    wavelength_max = Instrument.measurement(
-        "SENS:CORR:WAV? MAX", "Measure maximum wavelength, in nm"
-    )
-
-    @property
-    def wavelength(self):
-        """Control the wavelength in nm."""
-        value = self.values("SENSE:CORR:WAV?")[0]
-        return value
-
-    @wavelength.setter
-    def wavelength(self, value):
-        """Wavelength in nm."""
-        if self.wavelength_settable:
-            # Store min and max wavelength to only request them once.
-            if not hasattr(self, "_wavelength_min"):
-                self._wavelength_min = self.wavelength_min
-            if not hasattr(self, "_wavelength_max"):
-                self._wavelength_max = self.wavelength_max
-
-            value = strict_range(
-                value, [self._wavelength_min, self._wavelength_max]
-            )
-            self.write(f"SENSE:CORR:WAV {value}")
-        else:
-            raise AttributeError(
-                f"{self.sensor_name} does not allow setting the wavelength."
-            )
-
-    @property
-    def power(self):
-        """Measure the power in W."""
-        if self.is_power_sensor:
-            return self.values("MEAS:POW?")[0]
-        else:
-            raise AttributeError(f"{self.sensor_name} is not a power sensor.")
-
-    @property
-    def energy(self):
-        """Measure the energy in J."""
-        if self.is_energy_sensor:
-            return self.values("MEAS:ENER?")[0]
-        else:
-            raise AttributeError(
-                f"{self.sensor_name} is not an energy sensor."
-            )
+        self._disable_properties()
 
     def _set_flags(self):
         """Get sensor info and write flags."""
@@ -128,3 +82,103 @@ class ThorlabsPM100USB(SCPIMixin, Instrument):
             _d128,  # 128
             self.has_temperature_sensor,  # 256
         ) = self.flags
+
+    def _disable_properties(self):
+        disable = []
+
+        if self.is_power_sensor:
+            disable += DISABLE_FOR_POWER_SENSOR
+
+        if self.is_energy_sensor:
+            disable += DISABLE_FOR_ENERGY_SENSOR
+
+        if disable:
+            self.__class__ = type(
+                f"{type(self).__name__}Instance",
+                (type(self),),
+                {prop: self._disabled_property() for prop in disable},
+            )
+
+    def _disabled_property(self):
+        class _Disabled:
+            def __get__(_, instance, owner):
+                raise AttributeError(f"{self.sensor_name} sensor does not support this operation.")
+
+            def __set__(_, instance, value):
+                raise AttributeError(f"{self.sensor_name} sensor does not support this operation.")
+
+        return _Disabled()
+
+    # === MISCELLANEOUS ===
+
+    def zero(self):
+        """Perform zero adjustment routine."""
+        self.write("SENS:CORR:COLL:ZERO")
+
+    # === WAVELENGTH ===
+
+    wavelength_min = Instrument.measurement(
+        "SENS:CORR:WAV? MIN", "Measure minimum wavelength, in nm"
+    )
+
+    wavelength_max = Instrument.measurement(
+        "SENS:CORR:WAV? MAX", "Measure maximum wavelength, in nm"
+    )
+
+    @property
+    def wavelength(self):
+        """Control the wavelength in nm."""
+        value = self.values("SENSE:CORR:WAV?")[0]
+        return value
+
+    @wavelength.setter
+    def wavelength(self, value):
+        """Wavelength in nm."""
+        if self.wavelength_settable:
+            # Store min and max wavelength to only request them once.
+            if not hasattr(self, "_wavelength_min"):
+                self._wavelength_min = self.wavelength_min
+            if not hasattr(self, "_wavelength_max"):
+                self._wavelength_max = self.wavelength_max
+
+            value = strict_range(value, [self._wavelength_min, self._wavelength_max])
+            self.write(f"SENSE:CORR:WAV {value}")
+        else:
+            raise AttributeError(f"{self.sensor_name} does not allow setting the wavelength.")
+
+    # === POWER ===
+
+    power = Instrument.measurement(
+        "MEAS:POW?",
+        """Measure the power, in W.""",
+    )
+
+    power_range = Instrument.control(
+        "SENS:POW:RANG?",
+        "SENS:POW:RANG %g",
+        """Control the power range in W, float.""",
+        check_set_errors=True,
+    )
+
+    power_auto_range = Instrument.control(
+        "SENS:POW:RANG:AUTO?",
+        "SENS:POW:RANG:AUTO %d",
+        """Control the status power auto-ranging function, bool.""",
+        validator=strict_discrete_set,
+        values={True: 1, False: 0},
+        map_values=True,
+    )
+
+    # === ENERGY ===
+
+    energy = Instrument.measurement(
+        "MEAS:ENER?",
+        """Measure the energy in J.""",
+    )
+
+    energy_range = Instrument.control(
+        "SENS:ENER:RANG?",
+        "SENS:ENER:RANG %g",
+        """Control the energy range in W, float.""",
+        check_set_errors=True,
+    )

@@ -128,7 +128,7 @@ class ThorlabsPM100USB(SCPIMixin, Instrument):
     @property
     def wavelength(self):
         """Control the wavelength in nm."""
-        value = self.values("SENSE:CORR:WAV?")[0]
+        value = self.values("SENS:CORR:WAV?")[0]
         return value
 
     @wavelength.setter
@@ -142,7 +142,7 @@ class ThorlabsPM100USB(SCPIMixin, Instrument):
                 self._wavelength_max = self.wavelength_max
 
             value = strict_range(value, [self._wavelength_min, self._wavelength_max])
-            self.write(f"SENSE:CORR:WAV {value}")
+            self.write(f"SENS:CORR:WAV {value}")
         else:
             raise AttributeError(f"{self.sensor_name} does not allow setting the wavelength.")
 

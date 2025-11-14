@@ -23,104 +23,79 @@
 #
 
 from enum import Enum
+from dataclasses import dataclass
 
 
-class SCPIKeyword(str):
-    """Represents a SCPI keyword with shortform handling.
+@dataclass(frozen=True)
+class SCPIKeyword:
 
-    A `SCPIKeyword` is a string subclass that enforces SCPI keyword syntax and automatically derives
-    the valid shortform abbreviation (the uppercase portion, plus any digits). It can be compared
-    case-insensitively against either its longform or shortform.
+    keyword: str
+    """The longform SCPI keyword, e.g. ``"VOLTage"``."""
 
-    Example:
-        >>> k = SCPIKeyword("PYMeasure")
-        >>> k.shortform
-        'PYM'
-        >>> k == "PYM"
-        True
-        >>> k == "PyMeasure"
-        True
-        >>> k == "PyMeas"
-        False
+    _REMOVE_LOWER = str.maketrans("", "", "abcdefghijklmnopqrstuvwxyz")
 
-    Rules:
-        * Must contain only alphanumeric characters.
-        * Uppercase letters define the shortform abbreviation.
-        * Must start with at least one uppercase letter to define the shortform.
-        * Must follow the pattern <uppercase><lowercase><digits>.
-    """
+    def __init__(self, keyword):
+        if isinstance(keyword, SCPIKeyword):
+            object.__setattr__(self, "keyword", keyword.keyword)
+            return
 
-    def __new__(cls, value):
-        """Validate and construct a new SCPIKeyword instance."""
-        if isinstance(value, SCPIKeyword):
-            instance = super().__new__(cls, value)
-            instance.shortform = value.shortform
-            return instance
+        if not isinstance(keyword, str):
+            raise TypeError(f"Expected a string or SCPIKeyword, got {type(keyword).__name__}")
 
-        if not isinstance(value, str):
-            raise TypeError(f"Expected a string or SCPIKeyword, got {type(value).__name__}")
+        if not keyword.isalnum():
+            raise ValueError(f"Invalid SCPIKeyword '{keyword}': must be alphanumeric")
 
-        if not value.isalnum():
-            raise ValueError(f"Invalid SCPIKeyword '{value}': must be alphanumeric")
-
-        upper = "".join(filter(str.isupper, value))
-        lower = "".join(filter(str.islower, value))
-        decimal = "".join(filter(str.isdecimal, value))
+        upper = "".join(filter(str.isupper, keyword))
+        lower = "".join(filter(str.islower, keyword))
+        decimal = "".join(filter(str.isdecimal, keyword))
 
         if len(upper) == 0:
             raise ValueError(
-                f"Invalid SCPIKeyword '{value}': "
+                f"Invalid SCPIKeyword '{keyword}': "
                 "Must start with at least one uppercase character."
             )
 
-        if value != upper + lower + decimal:
+        if keyword != upper + lower + decimal:
             raise ValueError(
-                f"Invalid SCPIKeyword '{value}': "
+                f"Invalid SCPIKeyword '{keyword}': "
                 "must be of the form '<uppercase><lowercase><decimal>'."
             )
 
-        instance = super().__new__(cls, value)
-        instance.shortform = upper + decimal
-        return instance
+        object.__setattr__(self, "keyword", keyword)
+
+    @property
+    def shortform(self):
+        return self.keyword.translate(self._REMOVE_LOWER)
 
     def __eq__(self, other):
-        """Compare against a string or SCPIKeyword, matching longform or shortform."""
-        if isinstance(other, str):
-            return other.upper() in [self.upper(), self.shortform]
-        return NotImplemented
+        if isinstance(other, SCPIKeyword):
+            other = other.shortform
+        return other == self.shortform
+
+    def matches(self, value):
+        if isinstance(value, SCPIKeyword):
+            return value == self
+        if isinstance(value, str):
+            return value.upper() in (self.keyword.upper(), self.shortform)
+        return TypeError(f"Expected type str or SCPIKeyword, got {type(value)}")
+
+    def __hash__(self):
+        return hash(self.shortform)
+
+    def __str__(self):
+        return self.shortform
 
     def __repr__(self):
-        return f"SCPIKeyword('{self!s}')"
+        return f"SCPIKeyword('{self.keyword}')"
 
 
 class SCPIKeywordEnum(SCPIKeyword, Enum):
-    """Enum subclass for SCPI keywords with shortform and case-insensitive lookup.
-
-    This class extends :class:`Enum` and :class:`SCPIKeyword` to allow lookup of
-    enum members using either the longform keyword, shortform keyword or any
-    case-insensitive variant. This makes it easy to resolve user input or parsed
-    SCPI commands to the correct enumeration member.
-
-    Example:
-        >>> class PyMeasureEnum(SCPIKeywordEnum):
-        ...     PYMEASURE = "PYMeasure"
-
-        >>> PyMeasureEnum("PYM")
-        <PyMeasureEnum.PYMEASURE: SCPIKeyword('PYMeasure')>
-        >>> PyMeasureEnum("PyMeasure")
-        <PyMeasureEnum.PYMEASURE: SCPIKeyword('PYMeasure')>
-        >>> PyMeasureEnum("foo")
-        Traceback (most recent call last):
-            ...
-        ValueError: 'foo' is not a valid PyMeasureEnum
-    """
 
     @classmethod
     def _missing_(cls, value):
-        """Allow lookup by short or case-insensitive SCPI keyword string."""
-        if isinstance(value, str):
+        if isinstance(value, (str, SCPIKeyword)):
             for member in cls:
-                if member == value:  # Uses SCPIKeyword.__eq__
+                if member.value.matches(value):  # Uses SCPIKeyword.__eq__
                     return member
         return None
 

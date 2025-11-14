@@ -27,12 +27,14 @@ import pytest
 from pymeasure.instruments import SCPIKeyword, SCPIKeywordEnum
 from pymeasure.instruments.validators import strict_discrete_set
 
+from test_common_base import CommonBase, FakeBase
+
 
 # === SCPIKeyword ===
 
 
 @pytest.mark.parametrize(
-    "input_value, shortform",
+    "value, shortform",
     (
         ("ALPHa", "ALPH"),
         ("ALPH", "ALPH"),
@@ -40,76 +42,126 @@ from pymeasure.instruments.validators import strict_discrete_set
         (SCPIKeyword("ALPHa"), "ALPH"),
     ),
 )
-def test_scpi_keyword_init_valid(input_value, shortform):
-    assert SCPIKeyword(input_value).shortform == shortform
+def test_scpi_keyword_init_valid(value, shortform):
+    assert SCPIKeyword(value).shortform == shortform
 
 
-@pytest.mark.parametrize("input_value", [1234])
-def test_scpi_keyword_init_type_error(input_value):
+@pytest.mark.parametrize("value", [1234])
+def test_scpi_keyword_init_type_error(value):
     with pytest.raises(TypeError):
-        SCPIKeyword(input_value)
+        SCPIKeyword(value)
 
 
-@pytest.mark.parametrize("input_value", ("ALPHa-1", "alpha", "alPHa", "A1PHa"))
-def test_scpi_keyword_init_value_error(input_value):
+@pytest.mark.parametrize("value", ("ALPHa-1", "alpha", "alPHa", "A1PHa"))
+def test_scpi_keyword_init_value_error(value):
     with pytest.raises(ValueError):
-        SCPIKeyword(input_value)
-
-
-ALPHA_KEYWORD = SCPIKeyword("ALPHa")
+        SCPIKeyword(value)
 
 
 def test_scpi_keyword_repr():
-    assert repr(ALPHA_KEYWORD) == "SCPIKeyword('ALPHa')"
+    assert repr(SCPIKeyword("ALPHa")) == "SCPIKeyword('ALPHa')"
 
 
-@pytest.mark.parametrize("input_value, valid", [("Alph", True), ("Alpha", True), ("ALP", False)])
-def test_scpi_keyword_eq(input_value, valid):
-    assert (ALPHA_KEYWORD == input_value) is valid
+def test_scpi_keyword_str():
+    assert ("%s" % SCPIKeyword("ALPHa")) == "ALPH"
 
 
-@pytest.mark.parametrize("input_value", ["Alph", "Alpha"])
-def test_scpi_keyword_strict_discrete_set_valid(input_value):
-    strict_discrete_set(input_value, [ALPHA_KEYWORD])
+@pytest.mark.parametrize(
+    "value, valid",
+    [
+        ("Alph", True),
+        ("Alpha", True),
+        (SCPIKeyword("ALPHa"), True),
+        ("ALP", False),
+        (SCPIKeyword("ALPH"), False),
+    ],
+)
+def test_scpi_keyword_matches(value, valid):
+    assert SCPIKeyword("ALPHa").matches(value) is valid
 
 
-@pytest.mark.parametrize("input_value", ["ALP"])
-def test_scpi_keyword_strict_discrete_set_value_error(input_value):
+@pytest.mark.parametrize("value, valid", [("ALPH", True), ("ALPHa", False)])
+def test_scpi_keyword_hash(value, valid):
+    assert (hash(SCPIKeyword("ALPHa")) == hash(value)) is valid
+
+
+@pytest.mark.parametrize("value", ["ALPH", SCPIKeyword("ALPHa")])
+def test_scpi_keyword_strict_discrete_set_valid(value):
+    strict_discrete_set(value, {SCPIKeyword("ALPHa")})
+
+
+@pytest.mark.parametrize("value", ["ALP", SCPIKeyword("ALPH"), False])
+def test_scpi_keyword_strict_discrete_set_value_error(value):
     with pytest.raises(ValueError):
-        strict_discrete_set(input_value, [ALPHA_KEYWORD])
+        strict_discrete_set(value, {SCPIKeyword("ALPHa")})
+
+
+@pytest.mark.parametrize("dynamic", [False, True])
+def test_scpi_keyword_control(dynamic):
+    class Fake(FakeBase):
+        x = CommonBase.control(
+            "",
+            "%s",
+            "",
+            validator=strict_discrete_set,
+            values={SCPIKeyword("ALPHa")},
+            dynamic=dynamic,
+        )
+
+    fake = Fake()
+    fake.x = "Alpha"
+    assert fake.read() == "ALPHa"
+    fake.x = "alph"
+    assert fake.x == "ALPHa"
+    fake.x = "ALPHA"
+    assert type(fake.x) is SCPIKeyword
 
 
 # === SCPIKeywordEnum ===
 
 
-class PhoneticKeywordEnum(SCPIKeywordEnum):
+class AlphaKeywordEnum(SCPIKeywordEnum):
     ALPHA = "ALPHa"
     BRAVO = SCPIKeyword("BRAVo")
 
 
-@pytest.mark.parametrize("input_value, valid", [("Alph", True), ("Alpha", True), ("ALP", False)])
-def test_scpi_keyword_enum_eq(input_value, valid):
-    assert (PhoneticKeywordEnum.ALPHA == input_value) is valid
+@pytest.mark.parametrize("entry", [AlphaKeywordEnum.ALPHA, AlphaKeywordEnum.BRAVO])
+def test_scpi_keyword_enum_str(entry):
+    assert str(entry) == str(entry.value)
 
 
 @pytest.mark.parametrize(
-    "input_value, expected_member",
+    "entry, value, valid",
     [
-        ("ALPHa", PhoneticKeywordEnum.ALPHA),
-        ("alph", PhoneticKeywordEnum.ALPHA),
-        ("Alpha", PhoneticKeywordEnum.ALPHA),
-        ("Bravo", PhoneticKeywordEnum.BRAVO),
+        (AlphaKeywordEnum.ALPHA, SCPIKeyword("ALPHa"), True),
+        (AlphaKeywordEnum.ALPHA, "Alpha", True),
+        (AlphaKeywordEnum.ALPHA, "alph", True),
+        (AlphaKeywordEnum.ALPHA, "ALP", False),
+        (AlphaKeywordEnum.BRAVO, SCPIKeyword("BRAVo"), True),
+        (AlphaKeywordEnum.BRAVO, "Bravo", True),
+        (AlphaKeywordEnum.BRAVO, "brav", True),
     ],
 )
-def test_scpi_keyword_enum_lookup_valid(input_value, expected_member):
-    assert PhoneticKeywordEnum(input_value) is expected_member
+def test_scpi_keyword_enum_eq(entry, value, valid):
+    assert (entry.value == value) is valid
+
+
+@pytest.mark.parametrize(
+    "entry, value",
+    [
+        (AlphaKeywordEnum.ALPHA, SCPIKeyword("ALPHa")),
+        (AlphaKeywordEnum.ALPHA, "Alpha"),
+        (AlphaKeywordEnum.ALPHA, "alph"),
+        (AlphaKeywordEnum.BRAVO, SCPIKeyword("BRAVo")),
+        (AlphaKeywordEnum.BRAVO, "Bravo"),
+        (AlphaKeywordEnum.BRAVO, "brav"),
+    ],
+)
+def test_scpi_keyword_enum_lookup_valid(entry, value):
+    assert AlphaKeywordEnum(value) is entry
 
 
 @pytest.mark.parametrize("input_value", ["Charlie", "", None])
 def test_scpi_keyword_enum_lookup_value_error(input_value):
     with pytest.raises(ValueError):
-        PhoneticKeywordEnum(input_value)
-
-
-def test_scpi_keyword_str():
-    assert str(PhoneticKeywordEnum.ALPHA) == str(PhoneticKeywordEnum.ALPHA.value)
+        AlphaKeywordEnum(input_value)

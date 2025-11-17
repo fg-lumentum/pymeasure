@@ -110,3 +110,33 @@ class SCPIUnknownMixin(SCPIMixin):
         warn("It is not known whether this device support SCPI commands or not. Please inform "
              "the pymeasure maintainers if you know the answer.", FutureWarning)
         super().__init__(*args, **kwargs)
+
+
+def scpi_keywords_to_dict(*keywords, ctrl_shortform=False, instr_shortform=True):
+    mapping = {}
+
+    for kw in keywords:
+        upper = "".join(filter(str.isupper, kw))
+        lower = "".join(filter(str.islower, kw))
+        decimal = "".join(filter(str.isdecimal, kw))
+
+        if len(upper) == 0:
+            raise ValueError(
+                f"Invalid SCPI keyword '{kw}'. Must start with at least one uppercase character."
+            )
+
+        if kw != upper + lower + decimal:
+            raise ValueError(
+                f"Invalid SCPI keyword '{kw}'. "
+                "Must be of the form '<uppercase><lowercase><decimal>'."
+            )
+
+        short = upper + decimal
+        long = kw.upper()
+
+        v = short if instr_shortform else long
+        keys = (short, long) if ctrl_shortform else (long, short)
+        for k in keys:
+            mapping[k] = v
+
+    return mapping

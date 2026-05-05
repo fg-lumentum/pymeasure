@@ -46,6 +46,7 @@ class TSL550(TSL500Series):
     @property
     def command_set(self):
         """Get the command set. The TSL-550 only accepts legacy commands.
+
         Legacy commands use units of nm and THz for wavelength and optical frequency
         respectively."""
         return "Legacy"

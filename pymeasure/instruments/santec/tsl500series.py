@@ -81,6 +81,7 @@ class TSL500Series(SCPIMixin, Instrument):
         ":SYSTem:COMMunicate:CODe?",
         ":SYSTem:COMMunicate:CODe %d",
         """Control the command set, "Legacy" or "SCPI".
+
         Legacy commands use units of nm and THz for wavelength and optical frequency respectively.
         SCPI commands use units of m and Hz for wavelength and optical frequency respectively.""",
         validator=strict_discrete_set,
@@ -245,6 +246,7 @@ class TSL500Series(SCPIMixin, Instrument):
         ":WAVelength:SWEep:DWELl?",
         ":WAVelength:SWEep:DWELl %g",
         """Control the wait time between consequent steps in step sweep mode, in s.
+
         Does not include time for wavelength tuning. (float strictly in range 0 to 999.9)""",
         validator=strict_range,
         values=[0, 999.9],
@@ -253,8 +255,8 @@ class TSL500Series(SCPIMixin, Instrument):
     sweep_delay = Instrument.control(
         ":WAVelength:SWEep:DELay?",
         ":WAVelength:SWEep:DELay %g",
-        """Control the wait time between consequent scans, in s.
-        (float strictly in range 0 to 999.9)""",
+        """Control the wait time between consequent scans, in s
+        (float strictly in range 0 to 999.9).""",
         validator=strict_range,
         values=[0, 999.9],
     )

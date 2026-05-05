@@ -23,6 +23,7 @@
 #
 
 from pymeasure.instruments import Instrument
+from pymeasure.instruments.validators import strict_discrete_set
 from pymeasure.instruments.santec.tsl500series import (  # noqa: F401
     SweepMode,
     SweepPattern,
@@ -41,6 +42,18 @@ class TSL570(TSL500Series):
 
     def __init__(self, adapter, name="Santec TSL-570", **kwargs):
         super().__init__(adapter, name, **kwargs)
+
+    command_set = Instrument.control(
+        ":SYSTem:COMMunicate:CODe?",
+        ":SYSTem:COMMunicate:CODe %d",
+        """Control the command set, "Legacy" or "SCPI".
+
+        Unless otherwise stated, Legacy commands use units of nm for wavelength, and THz for optical
+        frequency. SCPI commands use units of m for wavelength and Hz for optical frequency.""",
+        validator=strict_discrete_set,
+        values={"Legacy": 0, "SCPI": 1},
+        map_values=True,
+    )
 
     wavelength_min = Instrument.measurement(
         ":WAVelength:SWEep:RANGe:MINimum?",

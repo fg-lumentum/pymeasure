@@ -77,18 +77,6 @@ class TSL500Series(SCPIMixin, Instrument):
     def __init__(self, adapter, name="Santec TSL-500 Series", **kwargs):
         super().__init__(adapter, name, **kwargs)
 
-    command_set = Instrument.control(
-        ":SYSTem:COMMunicate:CODe?",
-        ":SYSTem:COMMunicate:CODe %d",
-        """Control the command set, "Legacy" or "SCPI".
-
-        Legacy commands use units of nm and THz for wavelength and optical frequency respectively.
-        SCPI commands use units of m and Hz for wavelength and optical frequency respectively.""",
-        validator=strict_discrete_set,
-        values={"Legacy": 0, "SCPI": 1},
-        map_values=True,
-    )
-
     # --- Optical power control ---
 
     output_enabled = Instrument.control(
@@ -126,29 +114,28 @@ class TSL500Series(SCPIMixin, Instrument):
     wavelength_setpoint = Instrument.control(
         ":WAVelength?",
         ":WAVelength %g",
-        """Control the output wavelength, units determined by :attr:`~.command_set`.""",
+        """Control the output wavelength.""",
         check_set_errors=True,
     )
 
     wavelength_start = Instrument.control(
         ":WAVelength:SWEep:STARt?",
         ":WAVelength:SWEep:STARt %g",
-        """Control the sweep start wavelength, units determined by :attr:`~.command_set`.""",
+        """Control the sweep start wavelength.""",
         check_set_errors=True,
     )
 
     wavelength_stop = Instrument.control(
         ":WAVelength:SWEep:STOP?",
         ":WAVelength:SWEep:STOP %g",
-        """Control the sweep stop wavelength, units determined by :attr:`~.command_set`.""",
+        """Control the sweep stop wavelength.""",
         check_set_errors=True,
     )
 
     wavelength_step = Instrument.control(
         ":WAVelength:SWEep:STEP?",
         ":WAVelength:SWEep:STEP %g",
-        """Control the sweep step wavelength when in step sweep mode,
-        units determined by :attr:`~.command_set`.""",
+        """Control the sweep step wavelength when in step sweep mode.""",
         check_set_errors=True,
     )
 
@@ -157,29 +144,28 @@ class TSL500Series(SCPIMixin, Instrument):
     frequency_setpoint = Instrument.control(
         ":FREQuency?",
         ":FREQuency %g",
-        """Control the output frequency, units determined by :attr:`~.command_set`.""",
+        """Control the output frequency.""",
         check_set_errors=True,
     )
 
     frequency_start = Instrument.control(
         ":FREQuency:SWEep:STARt?",
         ":FREQuency:SWEep:STARt %g",
-        """Control the sweep start frequency, units determined by :attr:`~.command_set`.""",
+        """Control the sweep start frequency.""",
         check_set_errors=True,
     )
 
     frequency_stop = Instrument.control(
         ":FREQuency:SWEep:STOP?",
         ":FREQuency:SWEep:STOP %g",
-        """Control the sweep stop frequency, units determined by :attr:`~.command_set`.""",
+        """Control the sweep stop frequency.""",
         check_set_errors=True,
     )
 
     frequency_step = Instrument.control(
         ":FREQuency:SWEep:STEP?",
         ":FREQuency:SWEep:STEP %g",
-        """Control the sweep step frequency when in step sweep mode,
-        units determined by :attr:`~.command_set`.""",
+        """Control the sweep step frequency when in step sweep mode.""",
         check_set_errors=True,
     )
 

@@ -38,18 +38,12 @@ from pymeasure.instruments.santec.tsl500series import (  # noqa: F401
 
 class TSL550(TSL500Series):
     """Represents the Santec TSL-550 Tunable Laser and provides a high-level interface for
-    interacting with the instrument."""
+    interacting with the instrument.
+
+    Unless otherwise stated, units of wavelength are in nm, and THz for optical frequency."""
 
     def __init__(self, adapter, name="Santec TSL-550", **kwargs):
         super().__init__(adapter, name, **kwargs)
-
-    @property
-    def command_set(self):
-        """Get the command set. The TSL-550 only accepts legacy commands.
-
-        Legacy commands use units of nm and THz for wavelength and optical frequency
-        respectively."""
-        return "Legacy"
 
     laser_enabled = Instrument.control(
         ":POWer:STATe?",

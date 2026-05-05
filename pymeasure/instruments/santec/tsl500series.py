@@ -193,11 +193,13 @@ class TSL500Series(SCPIMixin, Instrument):
         ":WAVelength:SWEep:MODe?",
         ":WAVelength:SWEep:MODe %d",
         """Control the sweep mode as a SweepMode enum.""",
+        validator=strict_discrete_set,
+        values=[m.value for m in SweepMode],
         get_process=lambda v: SweepMode(v),
-        set_process=lambda v: v.value,
+        set_process=lambda v: int(SweepMode(v)),
     )
 
-    # Properties to independantly control sweep pattern (stepped vs continuous)
+    # Properties to independently control sweep pattern (stepped vs continuous)
     # and routing (one-way vs two-way)
 
     @property

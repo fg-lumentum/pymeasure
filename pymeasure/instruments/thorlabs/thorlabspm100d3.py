@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from pymeasure.instruments.thorlabs.thorlabspm100d2 import ThorlabsPM100D2, SensorTypes
+from pymeasure.instruments.thorlabs.thorlabspm100d2 import ThorlabsPM100D2, SensorTypes  # noqa
 
 
 class ThorlabsPM100D3(ThorlabsPM100D2):

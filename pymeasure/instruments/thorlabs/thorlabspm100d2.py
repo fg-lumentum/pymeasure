@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from pymeasure.instruments.thorlabs.thorlabspm100usb import ThorlabsPM100USB, SensorTypes
+from pymeasure.instruments.thorlabs.thorlabspm100usb import ThorlabsPM100USB, SensorTypes  # noqa
 
 from enum import IntFlag
 

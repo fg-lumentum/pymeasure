@@ -23,7 +23,7 @@
 #
 
 import logging
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 from warnings import warn
 
 from pymeasure.instruments import Instrument, SCPIUnknownMixin
@@ -40,10 +40,20 @@ class SensorTypes(IntEnum):
     FOUR_QUADRANT_THERMOPILE = 4
 
 
+class SensorFlagMap(IntFlag):
+    # For interpretation of the sensor flags see page 49 of
+    # https://media.thorlabs.com/globalassets/items/p/pm/pm1/pm100d/17654-d02.pdf?v=0116021333
+    # For NEW_FLAG_FORMAT, see the documentation linked in thorlabspm100d2.SensorFlagMap
+    WAVELENGTH_SETTABLE = 1 << 5
+    TEMPERATURE_SENSOR = 1 << 8
+    NEW_FLAG_FORMAT = 1 << 31
+
+
 class ThorlabsPM100USB(SCPIUnknownMixin, Instrument):
-    """Represents Thorlabs PM100USB powermeter interface.
-    Also compatible with the Thorlabs PM100D, PM100D2, PM100D3, and PM100A.
-    """
+    """Represents Thorlabs PM100USB powermeter interface."""
+
+    sensor_flag_map = SensorFlagMap
+    uses_new_flag_format = False
 
     def __init__(self, adapter, name="ThorlabsPM100USB powermeter", **kwargs):
         super().__init__(adapter, name, **kwargs)
@@ -85,6 +95,7 @@ class ThorlabsPM100USB(SCPIUnknownMixin, Instrument):
     @property
     def power(self):
         """Measure the power in W.
+
         Only supported for photodiode, thermopile, and 4-quadrant thermopile sensors,
         raises `AttributeError` otherwise."""
         if self.is_power_sensor:
@@ -95,6 +106,7 @@ class ThorlabsPM100USB(SCPIUnknownMixin, Instrument):
     @property
     def power_density(self):
         """Measure the power density in W/cm^2.
+
         Only supported for photodiode, thermopile, and 4-quadrant thermopile sensors,
         raises `AttributeError` otherwise."""
         if self.is_power_sensor:
@@ -118,6 +130,7 @@ class ThorlabsPM100USB(SCPIUnknownMixin, Instrument):
     @property
     def energy_density(self):
         """Measure the energy density in J/cm^2.
+
         Only supported for pyroelectric sensors, raises `AttributeError` otherwise."""
         if self.is_energy_sensor:
             return self.values("MEAS:EDEN?")[0]
@@ -132,6 +145,7 @@ class ThorlabsPM100USB(SCPIUnknownMixin, Instrument):
     @property
     def current(self):
         """Measure the current in A.
+
         Only supported for photodiode sensors, raises `AttributeError` otherwise."""
         if self.is_current_sensor:
             return self.values("MEAS:CURR?")[0]
@@ -151,6 +165,7 @@ class ThorlabsPM100USB(SCPIUnknownMixin, Instrument):
     @property
     def voltage(self):
         """Measure the voltage in V.
+
         Only supported for pyroelectric, thermopile, or 4-quadrant thermopile sensors,
         raises `AttributeError` otherwise."""
         if self.is_voltage_sensor:
@@ -161,6 +176,7 @@ class ThorlabsPM100USB(SCPIUnknownMixin, Instrument):
     @property
     def temperature(self):
         """Measure the temperature in degC.
+
         Only supported for certain sensors, raises `AttributeError` otherwise."""
         if self.is_temperature_sensor:
             return self.values("MEAS:TEMP?")[0]
@@ -171,35 +187,37 @@ class ThorlabsPM100USB(SCPIUnknownMixin, Instrument):
 
     def configure_sensor(self):
         """Get sensor info and configure the `ThorlabsPM100USB` class for the sensor.
+
         Call whenever the sensor is changed."""
         response = self.values("SYST:SENSOR:IDN?")
         if response[0] == "no sensor":
             raise OSError("No sensor connected.")
-        self.sensor_name = response[0].replace('"', "")
-        self.sensor_sn = (
-            response[1].strip('"') if type(response[1]) == str else str(int(response[1]))
-        )
-        self.sensor_cal_msg = response[2].replace('"', "")
+        self.sensor_name = response[0].strip('"')
+        self.sensor_sn = self._format_sn(response[1])
+        self.sensor_cal_msg = response[2].strip('"')
         self.sensor_type = int(response[3])
         self.sensor_subtype = int(response[4])
         self.sensor_flags = int(response[5])
 
-        self.is_flags_new_format = bool(self.sensor_flags & 1 << 31)
+        if (
+            bool(self.sensor_flags & self.sensor_flag_map.NEW_FLAG_FORMAT)
+            != self.uses_new_flag_format
+        ):
+            raise ValueError("Sensor flags not in the expected format.")
 
-        # Interpretation of the flags differs between the PM100D and the PM100D2/PM100D3.
-        # For more information please see the documentation.
-        # PM100D: page 49 of https://media.thorlabs.com/globalassets/items/p/pm/pm1/pm100d/17654-d02.pdf?v=0116021333  # noqa
-        # PM100D2/PM100D3: SYST:SENS#:IDN? section of https://github.com/Thorlabs/Light_Analysis_Examples/tree/main/Python/Thorlabs%20PMxxx%20Power%20Meters/SCPI/commandDocu  # noqa
-        if self.is_flags_new_format:
-            self.is_wavelength_settable = bool(self.sensor_flags & 1 << 2)
-            self.is_temperature_sensor = bool(self.sensor_flags & 1 << 12)
-        else:
-            self.is_wavelength_settable = bool(self.sensor_flags & 1 << 5)
-            self.is_temperature_sensor = bool(self.sensor_flags & 1 << 8)
+        self.is_wavelength_settable = bool(
+            self.sensor_flags & self.sensor_flag_map.WAVELENGTH_SETTABLE
+        )
+        self.is_temperature_sensor = bool(
+            self.sensor_flags & self.sensor_flag_map.TEMPERATURE_SENSOR
+        )
 
         self._wavelength_range = None
 
-    # For Maintaner: Is it necessary to deprecate properties that weren't exposed in the public API?
+    @staticmethod
+    def _format_sn(sn):
+        return str(int(sn))
+
     @property
     def flags(self):
         """Get the sensor flags, int.
